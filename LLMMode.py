@@ -51,29 +51,48 @@ def create_knowledge_base(texts):
         doc = Document(page_content=text)
         doc_id = str(i)
         documents.append(doc)
-        index_to_docstore_id[i] = doc_id
-
+        index_to_docstore_id[doc_id] = i
     vector_db.add_documents(documents)
     
     return vector_db
 
 def retrieve_and_generate_answer(question, knowledge_base):
-    retriever = knowledge_base.as_retriever()
-    relevant_docs = retriever.get_relevant_documents(question)
-    # Use a language model to generate the answer
-    qa_pipeline = pipeline("question-answering", model="deepset/roberta-base-squad2")
-    answers = [qa_pipeline(question=question, context=doc.page_content) for doc in relevant_docs]
-    return answers
+    try:
+        retriever = knowledge_base.as_retriever()
+        relevant_docs = retriever.invoke(input=question)  
+        if not relevant_docs:
+            print("No relevant documents found.")
+            return []
+        
+        # Use a language model to generate the answer
+        qa_pipeline = pipeline("question-answering", model="deepset/roberta-base-squad2")
+        answers = []
+        for doc in relevant_docs:
+            context = doc.page_content
+            print(f"Context: {context}")  # Debugging statement
+            answer = qa_pipeline(question=question, context=context)
+            print(f"Answer: {answer}")  # Debugging statement
+            answers.append(answer)
+        return answers
+    except Exception as e:
+        print(f"An error occurred during inference: {e}")
+        return []
 
 # Step 4: Chatbot Interface
 def chatbot_interface(knowledge_base):
     while True:
-        question = input("Ask a question: ")
-        if question.lower() in ["exit", "quit"]:
-            break
-        answers = retrieve_and_generate_answer(question, knowledge_base)
-        for answer in answers:
-            print(f"Answer: {answer['answer']}")
+        try:
+            question = input("Ask a question: ")
+            if question.lower() in ["exit", "quit"]:
+                break
+            answers = retrieve_and_generate_answer(question, knowledge_base)
+            if answers:
+                for answer in answers:
+                    print(f"Answer: {answer['answer']}")
+            else:
+                print("No answers found.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
 # Main Execution
 if __name__ == "__main__":
